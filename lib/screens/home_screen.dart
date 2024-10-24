@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:nearby_chat_app/widgets/user_card.dart';
 import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
@@ -30,52 +31,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.bold,
                     color: Colors.white),
               ),
+              const SizedBox(
+                height: 8,
+              ),
               Expanded(
                 child: ListView(
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Color(0xFF121212),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Image(
-                              image: AssetImage('assets/user_profile.png'),
-                              width: 48,
-                            ),
-                            SizedBox(
-                              width: 8,
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'UserName',
-                                    style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.white),
-                                  ),
-                                  Text(
-                                    'DeviceName',
-                                    style: TextStyle(
-                                        fontSize: 12, color: Colors.grey),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(
-                              width: 8,
-                            ),
-                            Icon(Icons.notification_add),
-                          ],
-                        ),
-                      ),
-                    ),
+
                   ],
                 ),
               ),
