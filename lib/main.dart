@@ -1,9 +1,5 @@
-import 'dart:async';
-import 'dart:math';
-
 import 'package:flutter/material.dart';
-import 'package:nearby_connections/nearby_connections.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:nearby_chat_app/screens/home_screen.dart';
 
 void main() => runApp(const MyApp());
 
@@ -13,12 +9,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Nearby Connections Demo',
       home: const HomeScreen(),
     );
   }
 }
 
+/*
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -39,6 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+
     _requestPermissions().then((_) {
       _startAdvertising();
       _startDiscovery();
@@ -60,7 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
       Permission.bluetoothConnect,
       Permission.bluetoothScan,
       Permission.location,
-      Permission.nearbyWifiDevices,
+      //Permission.nearbyWifiDevices,
     ].request();
 
     bool allGranted = statuses.values.every((status) => status.isGranted);
@@ -231,8 +230,9 @@ class _HomeScreenState extends State<HomeScreen> {
             title: Text(name),
             subtitle: Text('ID: $id'),
             trailing: ElevatedButton(
-              onPressed: () => _disconnectFromDevice(id),
-              child: const Text('Desconectar'),
+              onPressed: () => Nearby().sendBytesPayload(
+                  id, Uint8List.fromList('TEST HEHEHHE'.codeUnits)),
+              child: const Text('Send data'),
             ),
           ),
         );
@@ -252,3 +252,4 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+*/

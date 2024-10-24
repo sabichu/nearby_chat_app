@@ -1,5 +1,5 @@
 name: nearby_chat_app
-description: "A new Flutter project."
+description: "Nearby Chat App."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -37,6 +37,7 @@ dependencies:
   cupertino_icons: ^1.0.6
   nearby_connections: ^4.1.1
   permission_handler: ^11.3.1
+  location: ^7.0.1
 
 dev_dependencies:
   flutter_test:
@@ -54,6 +55,8 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  assets:
+    - assets/
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
