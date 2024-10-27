@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 class UserCard extends StatelessWidget {
+  final String userId;
   final String userName;
   final String deviceName;
 
   const UserCard({
     super.key,
+    required this.userId,
     required this.userName,
     required this.deviceName,
   });

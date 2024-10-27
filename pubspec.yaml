@@ -38,6 +38,7 @@ dependencies:
   nearby_connections: ^4.1.1
   permission_handler: ^11.3.1
   location: ^7.0.1
+  device_info_plus: ^11.1.0
 
 dev_dependencies:
   flutter_test:

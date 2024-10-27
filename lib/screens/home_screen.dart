@@ -1,4 +1,8 @@
+import 'dart:io';
+
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:nearby_chat_app/classes/classes.dart';
 import 'package:nearby_chat_app/widgets/user_card.dart';
 import 'dart:async';
 import 'dart:math';
@@ -14,12 +18,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final String userName = 'User${Random().nextInt(1000)}';
+  //final String userName = 'User${Random().nextInt(1000)}';
+  Map<String, String> deviceInfo = {}; 
+  String userInfo = '';
+
   final Strategy strategy = Strategy.P2P_CLUSTER;
   //final Map<String, ConnectionInfo> endpointMap = {};
 
   final Map<String, String> discoveredEndpoints = {};
   final Set<String> connectedEndpoints = {};
+  final Map<String, RouteInfo> routingTable = {};
 
   StreamSubscription? discoverySubscription;
 
@@ -27,9 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
 
-    _requestPermissions().then((_) {
-      _startAdvertising();
-      _startDiscovery();
+    _initializeDeviceInfo().then((_) {
+      _requestPermissions().then((_) {
+        _startAdvertising();
+        _startDiscovery();
+      });
     });
   }
 
@@ -40,6 +50,13 @@ class _HomeScreenState extends State<HomeScreen> {
     Nearby().stopAllEndpoints();
     discoverySubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _initializeDeviceInfo() async {
+    deviceInfo = await DeviceInfoHelper.getDeviceInfo();
+    setState(() {
+      userInfo = 'User${Random().nextInt(1000)}|${deviceInfo['manufacturer']}|${deviceInfo['model']}';
+    });
   }
 
   Future<void> _requestPermissions() async {
@@ -61,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _startAdvertising() async {
     try {
       bool advertising = await Nearby().startAdvertising(
-        userName,
+        userInfo,
         strategy,
         onConnectionInitiated: _onConnectionInit,
         onConnectionResult: (id, status) {
@@ -90,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _startDiscovery() async {
     try {
       bool discovering = await Nearby().startDiscovery(
-        userName,
+        userInfo,
         strategy,
         onEndpointFound: (id, name, serviceId) {
           setState(() {
@@ -123,11 +140,22 @@ class _HomeScreenState extends State<HomeScreen> {
         // Manejar actualizaciones de transferencia de payload si es necesario
       },
     );
+
+    if (connectedEndpoints.contains(id)) {
+      setState(() {
+        routingTable[id] = RouteInfo(
+          nextHop: id,
+          distance: 1,
+          userName: info.endpointName.split('|')[0],
+          deviceName: info.endpointName.split('|')[2],
+        );
+      });
+    }
   }
 
   void _connectToDevice(String id) {
     Nearby().requestConnection(
-      userName,
+      userInfo,
       id,
       onConnectionInitiated: _onConnectionInit,
       onConnectionResult: (id, status) {
@@ -171,11 +199,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 height: 8,
               ),
               Expanded(
-                child: ListView(
-                  children: [
-                    UserCard(
-                        userName: 'Sabi Singh', deviceName: 'iPhone 13 Pro Max')
-                  ],
+                child:
+                ListView.builder(
+                  itemCount: routingTable.length,
+                  itemBuilder: (context, index) {
+                    final entry = routingTable.entries.elementAt(index);
+                    final endpointId = entry.key;
+                    final routeInfo = entry.value;
+
+                    return UserCard(userId: endpointId, userName: routeInfo.userName, deviceName: routeInfo.deviceName);
+                  },
                 ),
               ),
             ],
@@ -183,5 +216,31 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+}
+
+class DeviceInfoHelper {
+  static Future<Map<String, String>> getDeviceInfo() async {
+    final deviceInfo = DeviceInfoPlugin();
+    String model;
+    String manufacturer;
+
+    if (Platform.isAndroid) {
+      AndroidDeviceInfo androidInfo = await deviceInfo.androidInfo;
+      model = androidInfo.model;
+      manufacturer = androidInfo.manufacturer;
+    } else if (Platform.isIOS) {
+      IosDeviceInfo iosInfo = await deviceInfo.iosInfo;
+      model = iosInfo.utsname.machine;
+      manufacturer = 'Apple';
+    } else {
+      model = 'Unknown';
+      manufacturer = 'Unknown';
+    }
+
+    return {
+      'model': model,
+      'manufacturer': manufacturer,
+    };
   }
 }
