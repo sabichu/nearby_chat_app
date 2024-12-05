@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
 class UserCard extends StatelessWidget {
-  final String userId;
-  final String userName;
-  final String deviceName;
+  final int? userId;
+  final String? userName;
+  final String? deviceName;
 
   const UserCard({
     super.key,
-    required this.userId,
-    required this.userName,
-    required this.deviceName,
+    this.userId,
+    this.userName,
+    this.deviceName,
   });
 
   @override
@@ -38,16 +38,16 @@ class UserCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        userName,
+                        userName!,
                         style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w500,
                             color: Colors.white),
                       ),
                       Text(
-                        deviceName,
-                        style: const TextStyle(
-                            fontSize: 12, color: Colors.grey),
+                        deviceName!,
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
                     ],
                   ),

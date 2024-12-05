@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final int? userId;
+  final String? userName;
+
+  const ChatScreen({super.key, this.userId, this.userName});
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
@@ -14,9 +17,35 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Chat', style: TextStyle(color: Colors.white)),
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        automaticallyImplyLeading: false,
+        title: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            const SizedBox(width: 6),
+            const Image(
+              image: AssetImage('assets/user_image.png'),
+              width: 42,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  widget.userName!,
+                  style: const TextStyle(color: Colors.white, fontSize: 18),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.grey[900],
         elevation: 0,
       ),
       body: Column(
@@ -37,7 +66,8 @@ class _ChatScreenState extends State<ChatScreen> {
                       maxWidth: MediaQuery.of(context).size.width * 0.75,
                     ),
                     margin: const EdgeInsets.symmetric(vertical: 5),
-                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 10, horizontal: 14),
                     decoration: BoxDecoration(
                       color: isUserMessage
                           ? Theme.of(context).colorScheme.secondary
@@ -56,8 +86,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Text(
                       messages[index],
                       style: TextStyle(
-                        color:
-                            isUserMessage ? Colors.white : Colors.black87,
+                        color: isUserMessage ? Colors.white : Colors.black87,
                       ),
                     ),
                   ),
@@ -73,36 +102,58 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildMessageInput() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)],
-      ),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              decoration: InputDecoration.collapsed(
-                hintText: 'Escribe un mensaje...',
-                hintStyle: TextStyle(color: Colors.grey[500]),
+      color: Colors.grey[900],
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        decoration: InputDecoration(
+                          //hintText: 'Escribe un mensaje...',
+                          border: InputBorder.none,
+                          hintStyle: TextStyle(color: Colors.grey[500]),
+                        ),
+                        textCapitalization: TextCapitalization.sentences,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.attach_file, color: Colors.grey),
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
               ),
-              textCapitalization: TextCapitalization.sentences,
             ),
-          ),
-          IconButton(
-            icon: Icon(Icons.send,
-                color: Theme.of(context).colorScheme.secondary),
-            onPressed: () {
-              setState(() {
-                if (_controller.text.trim().isNotEmpty) {
-                  messages.insert(0, _controller.text.trim());
-                  _controller.clear();
-                }
-              });
-            },
-          ),
-        ],
+            const SizedBox(width: 8),
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              child: IconButton(
+                icon: const Icon(Icons.send, color: Colors.white),
+                onPressed: () {
+                  if (_controller.text.trim().isNotEmpty) {
+                    setState(() {
+                      messages.insert(0, _controller.text.trim());
+                      _controller.clear();
+                    });
+                  }
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
