@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:device_marketing_names/device_marketing_names.dart';
 import 'package:nearby_chat_app/models/device.dart';
@@ -30,6 +31,18 @@ class NearbyServiceManager {
 
   bool _isInitialized = false;
 
+  final StreamController<Message> _activeChatController =
+      StreamController<Message>.broadcast();
+
+  Stream<Message> get activeChatStream => _activeChatController.stream;
+
+  String? _currentChatId;
+
+  void setActiveChat(String chatId) {
+    _currentChatId = chatId;
+    _activeChatController.addStream(Stream.empty());
+  }
+
   Future<void> initialize({required String userName}) async {
     if (_isInitialized) return;
     _isInitialized = true;
@@ -56,6 +69,7 @@ class NearbyServiceManager {
       Nearby().stopAdvertising();
       Nearby().stopDiscovery();
       Nearby().stopAllEndpoints();
+      _activeChatController.close();
     }
   }
 
@@ -112,21 +126,15 @@ class NearbyServiceManager {
         onConnectionResult: (id, status) {
           if (status == Status.CONNECTED) {
             _connectedEndpoints.add(id);
-
-            //_showSnackbar('Conectado con $id');
-          } else {
-            //_showSnackbar('Error de conexión con $id: $status');
           }
         },
         onDisconnected: (id) {
           _connectedEndpoints.remove(id);
-          //_showSnackbar('Desconectado de $id');
           _onDisconnected(id);
         },
       );
-      //_showSnackbar('Advertising iniciado: $advertising');
     } catch (e) {
-      //_showSnackbar('Error al iniciar Advertising: $e');
+      print('Error al iniciar Advertising: $e');
     }
   }
 
@@ -140,15 +148,13 @@ class NearbyServiceManager {
         },
         onEndpointLost: (id) {},
       );
-      //_showSnackbar('Discovery iniciado: $discovering');
     } catch (e) {
-      //_showSnackbar('Error al iniciar Discovery: $e');
+      print('Error al iniciar Discovery: $e');
     }
   }
 
   void _onConnectionInitiated(String id, ConnectionInfo info) {
     if (_connectedEndpoints.contains(id)) {
-      print("Ya conectado con $id. Rechazando conexión.");
       Nearby().rejectConnection(id);
       return;
     }
@@ -159,7 +165,7 @@ class NearbyServiceManager {
         if (payload.type == PayloadType.BYTES) {
           try {
             Message receivedMessage = Message.fromBytes(payload.bytes!);
-            _saveMessageToDatabase(receivedMessage);
+            onMessageReceived(receivedMessage);
           } catch (e) {
             print("Error al procesar el mensaje recibido: $e");
           }
@@ -167,7 +173,6 @@ class NearbyServiceManager {
       },
     );
 
-    //if (connectedEndpoints.contains(id)) {
     RoutingEntry routingEntry = RoutingEntry(
         destinationId: id,
         nextHopId: id,
@@ -186,27 +191,19 @@ class NearbyServiceManager {
         lastSeenAt: DateTime.now().millisecondsSinceEpoch);
 
     _databaseService.insertDevice(device);
-    //}
   }
 
   void _handleEndpointFound(String remoteEndpointId, String remoteUserInfo) {
     final String remoteId = remoteUserInfo.split('|')[0];
     final String localId = userInfo.split('|')[0];
 
-    print('remoto id: ${remoteId}');
-    print('local id: ${localId}');
-
     if (localId.compareTo(remoteId) < 0) {
-      print("Este dispositivo inicia la conexión con $remoteEndpointId.");
       _connectToDevice(remoteEndpointId);
-    } else {
-      print("Esperando que $remoteEndpointId inicie la conexión.");
     }
   }
 
   void _connectToDevice(String id) {
     if (_connectedEndpoints.contains(id)) {
-      print("Ya estamos conectados con $id. Conexión ignorada.");
       return;
     }
 
@@ -217,14 +214,10 @@ class NearbyServiceManager {
       onConnectionResult: (id, status) {
         if (status == Status.CONNECTED) {
           _connectedEndpoints.add(id);
-          //_showSnackbar('Conectado con $id');
-        } else {
-          //_showSnackbar('Error de conexión con $id: $status');
         }
       },
       onDisconnected: (id) {
         _connectedEndpoints.remove(id);
-        //_showSnackbar('Desconectado de $id');
         _onDisconnected(id);
       },
     );
@@ -234,12 +227,44 @@ class NearbyServiceManager {
     await _databaseService.updateDeviceStatus(id, false);
   }
 
-  Future<void> _saveMessageToDatabase(Message message) async {
+  void onMessageReceived(Message message) async {
+    await _databaseService.insertMessage(message);
+
+    if (_currentChatId != null &&
+        (message.senderId == _currentChatId ||
+            message.receiverId == _currentChatId)) {
+      _activeChatController.add(message);
+    }
+  }
+
+  Future<void> sendMessage(Message message) async {
     try {
-      await _databaseService.insertMessage(message);
-      print("Mensaje recibido y guardado en la base de datos");
+      message.incrementHops();
+
+      if (message.isExpired()) {
+        throw Exception("El mensaje ha expirado (TTL agotado).");
+      }
+
+      final route = await _databaseService.getRoutingEntry(message.receiverId);
+      if (route == null) {
+        throw Exception("No se encontró una ruta hacia el destinatario.");
+      }
+
+      final nextHopId = route.nextHopId;
+
+      final payloadBytes = message.toBytes();
+
+      await Nearby().sendBytesPayload(nextHopId, payloadBytes);
+
+      print("Mensaje enviado a $nextHopId (destino final: ${message.receiverId})");
+
+      message.updateStatus('SENT');
+      await _databaseService.updateMessageStatus(message.messageId, 'SENT');
     } catch (e) {
-      print("Error al guardar el mensaje en la base de datos: $e");
+      print("Error al enviar mensaje: $e");
+
+      message.updateStatus('ERROR');
+      await _databaseService.updateMessageStatus(message.messageId, 'ERROR');
     }
   }
 

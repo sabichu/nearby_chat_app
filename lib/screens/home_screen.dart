@@ -87,12 +87,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             context,
                             MaterialPageRoute(
                                 builder: (context) => ChatScreen(
-                                      userId: device.id,
+                                      userId: device.localId,
                                       userName: device.userName,
                                     )),
                           ),
                           child: UserCard(
-                              userId: device.id,
+                              userId: device.localId,
                               userName: device.userName,
                               deviceName: device.modelName),
                         );

@@ -167,6 +167,32 @@ class LocalDatabaseService {
     return List.generate(maps.length, (i) => RoutingEntry.fromMap(maps[i]));
   }
 
+  Future<RoutingEntry?> getRoutingEntry(String localId) async {
+    final nearbyId = await getNearbyIdFromLocalId(localId);
+
+    if (nearbyId == null) {
+      print("No se encontró un ID de Nearby para el local ID $localId.");
+      return null;
+    }
+
+    final db = await database;
+    try {
+      final List<Map<String, dynamic>> result = await db.query(
+        'routing_table',
+        where: 'destination_id = ?',
+        whereArgs: [nearbyId],
+      );
+
+      if (result.isNotEmpty) {
+        return RoutingEntry.fromMap(result.first);
+      }
+      return null;
+    } catch (e) {
+      print("Error al obtener la ruta para el destino $nearbyId: $e");
+      return null;
+    }
+  }
+
   Future<int> updateRoutingEntry(
       String destinationId, String nextHopId, int distance) async {
     final db = await database;
@@ -193,6 +219,26 @@ class LocalDatabaseService {
         conflictAlgorithm: ConflictAlgorithm.replace);
     _emitDeviceChanges();
     return result;
+  }
+
+  Future<String?> getNearbyIdFromLocalId(String localId) async {
+    final db = await database;
+    try {
+      final List<Map<String, dynamic>> result = await db.query(
+        'devices',
+        columns: ['device_id'],
+        where: 'local_id = ?',
+        whereArgs: [localId],
+      );
+
+      if (result.isNotEmpty) {
+        return result.first['device_id'] as String;
+      }
+      return null;
+    } catch (e) {
+      print("Error al obtener el ID de Nearby para el local ID $localId: $e");
+      return null;
+    }
   }
 
   Future<List<Device>> getAllDevices() async {

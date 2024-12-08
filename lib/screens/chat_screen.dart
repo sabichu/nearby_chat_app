@@ -1,18 +1,78 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:nearby_chat_app/models/message.dart';
+import 'package:nearby_chat_app/services/local_database_service.dart';
+import 'package:nearby_chat_app/services/nearby_service_manager.dart';
 
 class ChatScreen extends StatefulWidget {
-  final int? userId;
+  final String userId;
   final String? userName;
 
-  const ChatScreen({super.key, this.userId, this.userName});
+  const ChatScreen({super.key, required this.userId, this.userName});
 
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final List<String> messages = [];
+  late StreamSubscription<Message> _messageSubscription;
+  final List<Message> _messages = [];
   final TextEditingController _controller = TextEditingController();
+
+  final _nearbyServiceManager = NearbyServiceManager();
+  final _databaseService = LocalDatabaseService();
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeChat();
+  }
+
+  @override
+  void dispose() {
+    _messageSubscription.cancel();
+    _nearbyServiceManager.setActiveChat('');
+    super.dispose();
+  }
+
+  Future<void> _initializeChat() async {
+    _nearbyServiceManager.setActiveChat(widget.userId);
+
+    final messages = await _databaseService.loadMessages(widget.userId);
+    setState(() {
+      _messages.addAll(messages);
+    });
+
+    _messageSubscription = _nearbyServiceManager.activeChatStream.listen((message) {
+      if (message.senderId == widget.userId) {
+        setState(() {
+          _messages.add(message);
+        });
+
+        _databaseService.markMessagesAsRead(widget.userId);
+      }
+    });
+  }
+
+  Future<void> _sendMessage(String content) async {
+    final message = Message(
+      messageId: UniqueKey().toString(),
+      senderId: _nearbyServiceManager.localEndpointId,
+      receiverId: widget.userId,
+      content: content,
+      messageType: 'NORMAL',
+      sentAt: DateTime.now().millisecondsSinceEpoch,
+      status: 'PENDING',
+    );
+
+    setState(() {
+      _messages.insert(0, message);
+    });
+
+    await _databaseService.insertMessage(message);
+    _nearbyServiceManager.sendMessage(message);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +97,7 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  widget.userName!,
+                  widget.userName ?? 'Unknown',
                   style: const TextStyle(color: Colors.white, fontSize: 18),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -53,10 +113,13 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-              itemCount: messages.length,
+              itemCount: _messages.length,
               reverse: true,
               itemBuilder: (context, index) {
-                final isUserMessage = index % 2 == 0;
+                final message = _messages[index];
+                final isUserMessage =
+                    message.senderId == _nearbyServiceManager.localEndpointId;
+
                 return Align(
                   alignment: isUserMessage
                       ? Alignment.centerRight
@@ -84,7 +147,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       ),
                     ),
                     child: Text(
-                      messages[index],
+                      message.content,
                       style: TextStyle(
                         color: isUserMessage ? Colors.white : Colors.black87,
                       ),
@@ -144,10 +207,8 @@ class _ChatScreenState extends State<ChatScreen> {
                 icon: const Icon(Icons.send, color: Colors.white),
                 onPressed: () {
                   if (_controller.text.trim().isNotEmpty) {
-                    setState(() {
-                      messages.insert(0, _controller.text.trim());
-                      _controller.clear();
-                    });
+                    _sendMessage(_controller.text.trim());
+                    _controller.clear();
                   }
                 },
               ),
