@@ -41,13 +41,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
     final messages = await _databaseService.loadMessages(widget.userId);
     setState(() {
-      _messages.addAll(messages);
+      _messages.insertAll(0, messages.reversed);
     });
 
-    _messageSubscription = _nearbyServiceManager.activeChatStream.listen((message) {
+    _messageSubscription =
+        _nearbyServiceManager.activeChatStream.listen((message) {
       if (message.senderId == widget.userId) {
         setState(() {
-          _messages.add(message);
+          _messages.insert(0, message);
         });
 
         _databaseService.markMessagesAsRead(widget.userId);
@@ -184,7 +185,6 @@ class _ChatScreenState extends State<ChatScreen> {
                       child: TextField(
                         controller: _controller,
                         decoration: InputDecoration(
-                          //hintText: 'Escribe un mensaje...',
                           border: InputBorder.none,
                           hintStyle: TextStyle(color: Colors.grey[500]),
                         ),
