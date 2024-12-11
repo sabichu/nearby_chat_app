@@ -114,17 +114,19 @@ class LocalDatabaseService {
     return result.map((row) => Message.fromMap(row)).toList();
   }
 
-  Future<int> getUnreadMessageCount(String deviceId) async {
+  Future<Map<String, int>> getUnreadMessagesCount() async {
     final db = await database;
-    final result = await db.rawQuery(
-      '''
-      SELECT COUNT(*) as unread_count FROM messages
-      WHERE receiver_id = ? AND status != 'READ'
-      ''',
-      [deviceId],
-    );
-
-    return Sqflite.firstIntValue(result) ?? 0;
+    final result = await db.rawQuery('''
+      SELECT receiver_id, COUNT(*) as unread_count
+      FROM messages
+      WHERE status != 'READ'
+      GROUP BY receiver_id
+    ''');
+    
+    // Transformar el resultado en un Map<String, int>
+    return { 
+      for (var row in result) row['receiver_id'] as String: row['unread_count'] as int 
+    };
   }
 
   Future<void> markMessagesAsRead(String deviceId) async {

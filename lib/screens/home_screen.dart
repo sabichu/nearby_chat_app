@@ -18,10 +18,17 @@ class _HomeScreenState extends State<HomeScreen> {
   final LocalDatabaseService _databaseService = LocalDatabaseService();
   final NearbyServiceManager _nearbyServiceManager = NearbyServiceManager();
 
+  Map<String, int> _unreadMessages = {};
+
   @override
   void initState() {
     super.initState();
     _initializeNearbyService();
+    _nearbyServiceManager.unreadMessagesStream.listen((unreadCounts) {
+      setState(() {
+        _unreadMessages = unreadCounts;
+      });
+    });
   }
 
   Future<void> _initializeNearbyService() async {

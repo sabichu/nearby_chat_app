@@ -40,8 +40,22 @@ class NearbyServiceManager {
 
   void setActiveChat(String chatId) {
     _currentChatId = chatId;
+
+    if (_unreadMessages.containsKey(chatId)) {
+      _unreadMessages.remove(chatId);
+      _unreadMessagesController.add(Map.from(_unreadMessages));
+    }
+
     _activeChatController.addStream(Stream.empty());
   }
+
+  final StreamController<Map<String, int>> _unreadMessagesController =
+    StreamController<Map<String, int>>.broadcast();
+
+  Map<String, int> _unreadMessages = {};
+
+  Stream<Map<String, int>> get unreadMessagesStream =>
+      _unreadMessagesController.stream;
 
   Future<void> initialize({required String userName}) async {
     if (_isInitialized) return;
@@ -234,6 +248,13 @@ class NearbyServiceManager {
         (message.senderId == _currentChatId ||
             message.receiverId == _currentChatId)) {
       _activeChatController.add(message);
+    } else {
+      final userId = message.senderId == localEndpointId
+          ? message.receiverId
+          : message.senderId;
+
+      _unreadMessages[userId] = (_unreadMessages[userId] ?? 0) + 1;
+      _unreadMessagesController.add(Map.from(_unreadMessages));
     }
   }
 
