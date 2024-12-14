@@ -17,22 +17,25 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final LocalDatabaseService _databaseService = LocalDatabaseService();
   final NearbyServiceManager _nearbyServiceManager = NearbyServiceManager();
-
   Map<String, int> _unreadMessages = {};
 
   @override
   void initState() {
     super.initState();
     _initializeNearbyService();
+    _listenToUnreadMessages();
+  }
+
+  Future<void> _initializeNearbyService() async {
+    await _nearbyServiceManager.initialize(userName: widget.userName);
+  }
+
+  void _listenToUnreadMessages() {
     _nearbyServiceManager.unreadMessagesStream.listen((unreadCounts) {
       setState(() {
         _unreadMessages = unreadCounts;
       });
     });
-  }
-
-  Future<void> _initializeNearbyService() async {
-    await _nearbyServiceManager.initialize(userName: widget.userName);
   }
 
   @override
@@ -87,21 +90,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     return ListView.builder(
                       itemCount: devices.length,
                       itemBuilder: (context, index) {
-                        Device device = devices[index];
+                        final device = devices[index];
+                        final unreadCount = _unreadMessages[device.localId] ?? 0;
 
                         return GestureDetector(
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                                builder: (context) => ChatScreen(
-                                      userId: device.localId,
-                                      userName: device.userName,
-                                    )),
-                          ),
+                              builder: (context) => ChatScreen(
+                                userId: device.localId,
+                                userName: device.userName,
+                              ),
+                            ),
+                          ).then((_) {
+                            _nearbyServiceManager.resetUnreadMessages(device.localId);
+                          }),
                           child: UserCard(
-                              userId: device.localId,
-                              userName: device.userName,
-                              deviceName: device.modelName),
+                            userId: device.localId,
+                            userName: device.userName,
+                            deviceName: device.modelName,
+                            unreadMessages: unreadCount,
+                          ),
                         );
                       },
                     );

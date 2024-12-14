@@ -4,12 +4,14 @@ class UserCard extends StatelessWidget {
   final String userId;
   final String? userName;
   final String? deviceName;
+  final int unreadMessages;
 
   const UserCard({
     super.key,
     required this.userId,
     this.userName,
     this.deviceName,
+    this.unreadMessages = 0,
   });
 
   @override
@@ -38,16 +40,19 @@ class UserCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        userName!,
+                        userName ?? 'Unknown',
                         style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        ),
                       ),
                       Text(
-                        deviceName!,
-                        style:
-                            const TextStyle(fontSize: 12, color: Colors.grey),
+                        deviceName ?? 'Unknown device',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
                     ],
                   ),
@@ -55,25 +60,23 @@ class UserCard extends StatelessWidget {
                 const SizedBox(
                   width: 8,
                 ),
-                /*
-                Container(
-                  width: 24,
-                  decoration: BoxDecoration(
-                      color:  Colors.green,
-                      shape: BoxShape.circle),
-                  child: Padding(
-                    padding: const EdgeInsets.all(4),
+                if (unreadMessages > 0)
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
                     child: Text(
-                      '7',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 14,
+                      '$unreadMessages',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
                     ),
                   ),
-                ),
-                */
               ],
             ),
           ),

@@ -57,6 +57,13 @@ class NearbyServiceManager {
   Stream<Map<String, int>> get unreadMessagesStream =>
       _unreadMessagesController.stream;
 
+  void resetUnreadMessages(String userId) {
+    if (_unreadMessages.containsKey(userId)) {
+      _unreadMessages[userId] = 0;
+      _unreadMessagesController.add(Map.from(_unreadMessages));
+    }
+  }
+
   Future<void> initialize({required String userName}) async {
     if (_isInitialized) return;
     _isInitialized = true;
