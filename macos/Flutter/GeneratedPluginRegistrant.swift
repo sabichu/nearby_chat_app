@@ -7,7 +7,7 @@ import Foundation
 
 import device_info_plus
 import location
-import sqflite_darwin
+import sqflite
 
 func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   DeviceInfoPlusMacosPlugin.register(with: registry.registrar(forPlugin: "DeviceInfoPlusMacosPlugin"))
