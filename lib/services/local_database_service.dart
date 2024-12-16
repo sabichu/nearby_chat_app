@@ -46,7 +46,7 @@ class LocalDatabaseService {
         local_id  TEXT NOT NULL,
         user_name TEXT,
         model_name TEXT,
-        is_connected INTEGER NOT NULL CHECK(is_connected IN (0, 1)),
+        is_indirect INTEGER NOT NULL DEFAULT 0 CHECK(is_indirect IN (0, 1)),
         last_seen_at INTEGER NOT NULL
       )
     ''');
@@ -55,7 +55,7 @@ class LocalDatabaseService {
       CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         message_id TEXT NOT NULL UNIQUE,
-        message_type TEXT NOT NULL CHECK (message_type IN ('NORMAL', 'ACK', 'ROUTING_UPDATE')),
+        message_type TEXT NOT NULL CHECK (message_type IN ('NORMAL', 'ACK', 'ROUTING_UPDATE', 'DISCONNECT_UPDATE')),
         sender_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
         receiver_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
         content TEXT NOT NULL,
@@ -122,10 +122,9 @@ class LocalDatabaseService {
       WHERE status != 'READ'
       GROUP BY receiver_id
     ''');
-    
-    // Transformar el resultado en un Map<String, int>
-    return { 
-      for (var row in result) row['receiver_id'] as String: row['unread_count'] as int 
+
+    return {
+      for (var row in result) row['receiver_id'] as String: row['unread_count'] as int
     };
   }
 
@@ -249,35 +248,6 @@ class LocalDatabaseService {
     return List.generate(maps.length, (i) => Device.fromMap(maps[i]));
   }
 
-  Future<List<Device>> getAllConnectedDevices() async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps =
-        await db.query('devices', where: 'is_connected = 1');
-    return List.generate(maps.length, (i) => Device.fromMap(maps[i]));
-  }
-
-  Future<int> updateDeviceStatus(String deviceId, bool isConnected) async {
-    final db = await database;
-    int result = await db.update(
-      'devices',
-      {'is_connected': isConnected ? 1 : 0},
-      where: 'device_id = ?',
-      whereArgs: [deviceId],
-    );
-    _emitDeviceChanges();
-    return result;
-  }
-
-  Future<int> resetAllDeviceStatuses() async {
-    final db = await database;
-    int result = await db.update(
-      'devices',
-      {'is_connected': 0},
-    );
-    _emitDeviceChanges();
-    return result;
-  }
-
   Future<int> deleteDevice(String deviceId) async {
     final db = await database;
     int result = await db.delete(
@@ -290,7 +260,29 @@ class LocalDatabaseService {
   }
 
   void _emitDeviceChanges() async {
-    List<Device> connectedDevices = await getAllConnectedDevices();
-    _deviceStreamController.add(connectedDevices);
+    List<Device> devices = await getAllDevices();
+    _deviceStreamController.add(devices);
+  }
+
+  Future<bool> doesMessageExist(String messageId) async {
+    final db = await database;
+    final result = await db.query(
+      'messages',
+      where: 'message_id = ?',
+      whereArgs: [messageId],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<bool> doesDeviceExist(String localId) async {
+    final db = await database;
+    final result = await db.query(
+      'devices',
+      where: 'local_id = ?',
+      whereArgs: [localId],
+      limit: 1,
+    );
+    return result.isNotEmpty;
   }
 }

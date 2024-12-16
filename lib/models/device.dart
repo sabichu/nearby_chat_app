@@ -5,6 +5,7 @@ class Device {
   final String? userName;
   final String? modelName;
   bool isConnected;
+  bool isIndirect;
   int lastSeenAt;
 
   Device({
@@ -14,6 +15,7 @@ class Device {
     this.userName,
     this.modelName,
     this.isConnected = false,
+    this.isIndirect = false,
     required this.lastSeenAt,
   });
 
@@ -25,6 +27,7 @@ class Device {
       'user_name': userName,
       'model_name': modelName,
       'is_connected': isConnected ? 1 : 0,
+      'is_indirect': isIndirect ? 1 : 0,
       'last_seen_at': lastSeenAt,
     };
   }
@@ -37,6 +40,7 @@ class Device {
       userName: map['user_name'],
       modelName: map['model_name'],
       isConnected: map['is_connected'] == 1,
+      isIndirect: map['is_indirect'] == 1,
       lastSeenAt: map['last_seen_at'],
     );
   }

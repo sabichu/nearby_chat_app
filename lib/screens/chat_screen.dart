@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:nearby_chat_app/models/message.dart';
 import 'package:nearby_chat_app/services/local_database_service.dart';
 import 'package:nearby_chat_app/services/nearby_service_manager.dart';
+import 'package:uuid/uuid.dart';
 
 class ChatScreen extends StatefulWidget {
   final String userId;
@@ -58,7 +59,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _sendMessage(String content) async {
     final message = Message(
-      messageId: UniqueKey().toString(),
+      messageId: Uuid().v4(),
       senderId: _nearbyServiceManager.localEndpointId,
       receiverId: widget.userId,
       content: content,
