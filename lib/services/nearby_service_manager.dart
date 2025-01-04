@@ -187,7 +187,7 @@ class NearbyServiceManager {
         if (payload.type == PayloadType.BYTES) {
           try {
             Message receivedMessage = Message.fromBytes(payload.bytes!);
-            _processReceivedMessage(receivedMessage);
+            _processReceivedMessage(receivedMessage, endid);
           } catch (e) {
             print('Error processing received message: $e');
           }
@@ -205,7 +205,8 @@ class NearbyServiceManager {
 
     final localId = info.endpointName.split('|')[0];
     final userName = info.endpointName.split('|')[1];
-    final modelName = '${info.endpointName.split('|')[2]} ${info.endpointName.split('|')[3]}';
+    final modelName =
+        '${info.endpointName.split('|')[2]} ${info.endpointName.split('|')[3]}';
 
     Device device = Device(
         deviceId: id,
@@ -267,19 +268,19 @@ class NearbyServiceManager {
     }
   }
 
-  void _processReceivedMessage(Message message) async {
+  void _processReceivedMessage(Message message, String senderNearbyId) async {
     switch (message.messageType) {
+      case 'NORMAL':
+        _handleNormalMessage(message, senderNearbyId);
+        break;
+      case 'ACK':
+        _handleAckMessage(message, senderNearbyId);
+        break;
       case 'ROUTING_UPDATE':
-        _handleRoutingUpdate(message);
+        _handleRoutingUpdate(message, senderNearbyId);
         break;
       case 'DISCONNECT_UPDATE':
         _handleDisconnectUpdate(message);
-        break;
-      case 'NORMAL':
-        _handleNormalMessage(message);
-        break;
-      case 'ACK':
-        _handleAckMessage(message);
         break;
       default:
         print('Unknown type of message: ${message.messageType}');
@@ -287,8 +288,6 @@ class NearbyServiceManager {
   }
 
   void onMessageReceived(Message message) async {
-    await _databaseService.insertMessage(message);
-
     if (_currentChatId != null &&
         (message.senderId == _currentChatId ||
             message.receiverId == _currentChatId)) {
@@ -301,6 +300,121 @@ class NearbyServiceManager {
       _unreadMessages[userId] = (_unreadMessages[userId] ?? 0) + 1;
       _unreadMessagesController.add(Map.from(_unreadMessages));
     }
+  }
+
+  void _handleNormalMessage(Message message, String senderNearbyId) async {
+    if (await isMessageProcessed(message.messageId)) return;
+    _processedMessageIds.add(message.messageId);
+
+    if (message.receiverId == localEndpointId) {
+      await _databaseService.insertMessage(message);
+      onMessageReceived(message);
+
+      final ackMessage = Message(
+        messageId: Uuid().v4(),
+        messageType: 'ACK',
+        senderId: localEndpointId,
+        receiverId: message.senderId,
+        content: message.messageId,
+        sentAt: DateTime.now().millisecondsSinceEpoch,
+      );
+
+      await sendMessage(ackMessage);
+      return;
+    }
+
+    message.incrementHops();
+    if (message.isExpired()) {
+      print('Expired message: ${message.messageId}. It will not be forwarded.');
+      return;
+    }
+
+    final forwardedMessage = message.copyWith(status: 'FORWARDED');
+    await _databaseService.insertMessage(forwardedMessage);
+
+    final excludeNearbyIds = <String>[];
+    excludeNearbyIds.add(senderNearbyId);
+    final originalSenderNearbyId =
+        await _databaseService.getNearbyIdFromLocalId(message.senderId);
+    if (originalSenderNearbyId != null) {
+      excludeNearbyIds.add(originalSenderNearbyId);
+    }
+
+    await sendMessage(
+      message,
+      excludeNearbyIds: excludeNearbyIds,
+    );
+  }
+
+  void _handleAckMessage(Message message, String senderNearbyId) async {
+    if (await isMessageProcessed(message.messageId)) return;
+    _processedMessageIds.add(message.messageId);
+
+    if (message.receiverId == localEndpointId) {
+      final originalMessageId = message.content;
+      print('ACK received for the message: $originalMessageId');
+
+      await _databaseService.updateMessageStatus(
+          originalMessageId, 'DELIVERED');
+      return;
+    }
+
+    message.incrementHops();
+    if (message.isExpired()) {
+      print('ACK expired. It will not be processed.');
+      return;
+    }
+
+    final excludeNearbyIds = <String>[senderNearbyId];
+    final originalSenderNearbyId =
+        await _databaseService.getNearbyIdFromLocalId(message.senderId);
+    if (originalSenderNearbyId != null) {
+      excludeNearbyIds.add(originalSenderNearbyId);
+    }
+
+    await sendMessage(
+      message,
+      excludeNearbyIds: excludeNearbyIds,
+    );
+  }
+
+  void _handleRoutingUpdate(Message message, String senderNearbyId) async {
+    if (await isMessageProcessed(message.messageId)) return;
+    _processedMessageIds.add(message.messageId);
+
+    message.incrementHops();
+    if (message.isExpired()) {
+      print('ROUTING_UPDATE message expired. It will not be processed.');
+      return;
+    }
+
+    await _databaseService.insertMessage(message);
+
+    final contentParts = message.content.split('|');
+
+    if (contentParts.length < 2) {
+      print('Invalid ROUTING_UPDATE content');
+      return;
+    }
+
+    final localId = contentParts[0];
+    final nearbyId = contentParts[1];
+
+    final deviceExists = await _databaseService.doesDeviceExist(localId);
+    if (!deviceExists) {
+      await _databaseService.insertDevice(Device(
+        deviceId: nearbyId,
+        localId: localId,
+        isIndirect: true,
+        lastSeenAt: DateTime.now().millisecondsSinceEpoch,
+      ));
+    }
+
+    final excludeNearbyIds = <String>[senderNearbyId, nearbyId];
+    await sendMessage(
+      message,
+      excludeNearbyIds: excludeNearbyIds,
+    );
   }
 
   void _handleDisconnectUpdate(Message message) async {
@@ -322,7 +436,8 @@ class NearbyServiceManager {
       await _databaseService.deleteDevice(targetDeviceId);
 
       for (String endpointId in _connectedEndpoints) {
-        final senderNearbyId = await _databaseService.getNearbyIdFromLocalId(message.senderId);
+        final senderNearbyId =
+            await _databaseService.getNearbyIdFromLocalId(message.senderId);
         if (endpointId != senderNearbyId) {
           Nearby().sendBytesPayload(endpointId, message.toBytes());
         }
@@ -332,14 +447,17 @@ class NearbyServiceManager {
     _disconnectTimers[message.messageId] = timer;
 
     for (String endpointId in _connectedEndpoints) {
-      final senderNearbyId = await _databaseService.getNearbyIdFromLocalId(message.senderId);
+      final senderNearbyId =
+          await _databaseService.getNearbyIdFromLocalId(message.senderId);
       if (endpointId != senderNearbyId) {
-        await _sendReachabilityCheck(endpointId, targetDeviceId, message.messageId);
+        await _sendReachabilityCheck(
+            endpointId, targetDeviceId, message.messageId);
       }
     }
   }
 
-  Future<void> _sendReachabilityCheck(String endpointId, String targetDeviceId, String originalMessageId) async {
+  Future<void> _sendReachabilityCheck(String endpointId, String targetDeviceId,
+      String originalMessageId) async {
     final reachabilityCheck = Message(
       messageId: Uuid().v4(),
       messageType: 'REACHABILITY_CHECK',
@@ -369,7 +487,8 @@ class NearbyServiceManager {
     final originalMessageId = contentParts[1];
 
     if (_connectedEndpoints.contains(targetDeviceId)) {
-      print('Direct connection found with device disconnected $targetDeviceId.');
+      print(
+          'Direct connection found with device disconnected $targetDeviceId.');
 
       final reachabilityResponse = Message(
         messageId: Uuid().v4(),
@@ -380,23 +499,30 @@ class NearbyServiceManager {
         sentAt: DateTime.now().millisecondsSinceEpoch,
       );
 
-      final senderNearbyId = await _databaseService.getNearbyIdFromLocalId(message.senderId);
-      if (senderNearbyId != null && _connectedEndpoints.contains(senderNearbyId)) {
-        Nearby().sendBytesPayload(senderNearbyId, reachabilityResponse.toBytes());
+      final senderNearbyId =
+          await _databaseService.getNearbyIdFromLocalId(message.senderId);
+      if (senderNearbyId != null &&
+          _connectedEndpoints.contains(senderNearbyId)) {
+        Nearby()
+            .sendBytesPayload(senderNearbyId, reachabilityResponse.toBytes());
       } else {
         for (String endpointId in _connectedEndpoints) {
           if (endpointId != targetDeviceId) {
-            Nearby().sendBytesPayload(endpointId, reachabilityResponse.toBytes());
+            Nearby()
+                .sendBytesPayload(endpointId, reachabilityResponse.toBytes());
           }
         }
       }
     } else {
-      print('There is no connection with $targetDeviceId. Propagating REACHABILITY_CHECK.');
+      print(
+          'There is no connection with $targetDeviceId. Propagating REACHABILITY_CHECK.');
 
       for (String endpointId in _connectedEndpoints) {
-        final senderNearbyId = await _databaseService.getNearbyIdFromLocalId(message.senderId);
+        final senderNearbyId =
+            await _databaseService.getNearbyIdFromLocalId(message.senderId);
         if (endpointId != senderNearbyId) {
-          await _sendReachabilityCheck(endpointId, targetDeviceId, originalMessageId);
+          await _sendReachabilityCheck(
+              endpointId, targetDeviceId, originalMessageId);
         }
       }
     }
@@ -414,17 +540,20 @@ class NearbyServiceManager {
 
     if (message.receiverId == localEndpointId) {
       if (_disconnectTimers.containsKey(originalMessageId)) {
-        print('Reachability response received for $targetDeviceId. Cancelling timer.');
+        print(
+            'Reachability response received for $targetDeviceId. Cancelling timer.');
         _disconnectTimers[originalMessageId]?.cancel();
         _disconnectTimers.remove(originalMessageId);
       }
       return;
     }
 
-    final nextHopId = await _databaseService.getRoutingEntry(message.receiverId);
+    final nextHopId =
+        await _databaseService.getRoutingEntry(message.receiverId);
     if (nextHopId != null) {
       try {
-        print('Propagating REACHABILITY_CHECK_RESPONSE to the next hop: ${nextHopId.nextHopId}');
+        print(
+            'Propagating REACHABILITY_CHECK_RESPONSE to the next hop: ${nextHopId.nextHopId}');
         Nearby().sendBytesPayload(nextHopId.nextHopId, message.toBytes());
       } catch (e) {
         print('Error propagating REACHABILITY_CHECK_RESPONSE: $e');
@@ -438,80 +567,26 @@ class NearbyServiceManager {
     }
   }
 
-  void _handleNormalMessage(Message message) async {
-    if (await isMessageProcessed(message.messageId)) return;
-
-    _processedMessageIds.add(message.messageId);
-    await _databaseService.insertMessage(message);
-
-    message.incrementHops();
-    if (message.isExpired()) {
-      print('Expired message: ${message.messageId}. It will not be forwarded.');
-      return;
-    }
-
-    if (message.receiverId == localEndpointId) {
-      onMessageReceived(message);
-
-      final ackMessage = Message(
-        messageId: Uuid().v4(),
-        messageType: 'ACK',
-        senderId: localEndpointId,
-        receiverId: message.senderId,
-        content: message.messageId,
-        sentAt: DateTime.now().millisecondsSinceEpoch,
-      );
-      await sendMessage(ackMessage);
-    } else {
-      final senderNearbyId = await _databaseService.getNearbyIdFromLocalId(message.senderId);
-      for (String endpointId in _connectedEndpoints) {
-        if (endpointId != senderNearbyId) {
-          Nearby().sendBytesPayload(endpointId, message.toBytes());
-        }
-      }
-    }
-  }
-
-  void _handleAckMessage(Message message) async {
-    if (await isMessageProcessed(message.messageId)) return;
-
-    _processedMessageIds.add(message.messageId);
-    await _databaseService.insertMessage(message);
-
-    message.incrementHops();
-    if (message.isExpired()) {
-      print('ACK expired. It will not be processed.');
-      return;
-    }
-
-    if (message.receiverId == localEndpointId) {
-      final originalMessageId = message.content;
-      await _databaseService.updateMessageStatus(originalMessageId, 'DELIVERED');
-      print('ACK received for the message: $originalMessageId');
-    } else {
-      final senderNearbyId = await _databaseService.getNearbyIdFromLocalId(message.senderId);
-      for (String endpointId in _connectedEndpoints) {
-        if (endpointId != senderNearbyId) {
-          Nearby().sendBytesPayload(endpointId, message.toBytes());
-        }
-      }
-    }
-  }
-
-  Future<void> sendMessage(Message message) async {
+  Future<void> sendMessage(Message message,
+      {List<String>? excludeNearbyIds}) async {
     try {
       final route = await _databaseService.getRoutingEntry(message.receiverId);
-      if (route == null) {
-        for (String endpointId in _connectedEndpoints) {
-          Nearby().sendBytesPayload(endpointId, message.toBytes());
-        }
+
+      if (route != null) {
+        await Nearby().sendBytesPayload(route.nextHopId, message.toBytes());
       } else {
-        final nextHopId = route.nextHopId;
-        await Nearby().sendBytesPayload(nextHopId, message.toBytes());
+        for (String endpointId in _connectedEndpoints) {
+          if (excludeNearbyIds == null ||
+              !excludeNearbyIds.contains(endpointId)) {
+            await Nearby().sendBytesPayload(endpointId, message.toBytes());
+          }
+        }
       }
 
-      message.updateStatus('SENT');
-      await _databaseService.insertMessage(message);
+      if (message.senderId == localEndpointId) {
+        message.updateStatus('SENT');
+        await _databaseService.insertMessage(message);
+      }
     } catch (e) {
       message.updateStatus('ERROR');
       await _databaseService.updateMessageStatus(message.messageId, 'ERROR');
@@ -529,53 +604,7 @@ class NearbyServiceManager {
       ttl: 10,
     );
 
-    for (String endpointId in _connectedEndpoints) {
-      if (endpointId != nearbyId) {
-        Nearby().sendBytesPayload(endpointId, routingUpdate.toBytes());
-      }
-    }
-
-    _databaseService.insertMessage(routingUpdate);
-  }
-
-  void _handleRoutingUpdate(Message message) async {
-    if (await isMessageProcessed(message.messageId)) return;
-
-    if (message.isExpired()) {
-      print('ROUTING_UPDATE message expired. TTL timed out.');
-      return;
-    }
-
-    message.incrementHops();
-    if (message.isExpired()) {
-      print('ROUTING_UPDATE message expired. It will not be processed.');
-      return;
-    }
-
-    _processedMessageIds.add(message.messageId);
-    await _databaseService.insertMessage(message);
-
-    final contentParts = message.content.split('|');
-    final localId = contentParts[0];
-    final nearbyId = contentParts[1];
-
-    final senderNearbyId = await _databaseService.getNearbyIdFromLocalId(message.senderId);
-
-    final deviceExists = await _databaseService.doesDeviceExist(localId);
-    if (!deviceExists) {
-      await _databaseService.insertDevice(Device(
-        deviceId: nearbyId,
-        localId: localId,
-        isIndirect: true,
-        lastSeenAt: DateTime.now().millisecondsSinceEpoch,
-      ));
-    }
-
-    for (String endpointId in _connectedEndpoints) {
-      if (endpointId != senderNearbyId) {
-        Nearby().sendBytesPayload(endpointId, message.toBytes());
-      }
-    }
+    sendMessage(routingUpdate, excludeNearbyIds: [nearbyId]);
   }
 
   Future<bool> isMessageProcessed(String messageId) async {

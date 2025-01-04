@@ -28,6 +28,34 @@ class Message {
     this.readAt,
   });
 
+  Message copyWith({
+    int? id,
+    String? messageId,
+    String? messageType,
+    String? senderId,
+    String? receiverId,
+    String? content,
+    int? hops,
+    int? ttl,
+    String? status,
+    int? sentAt,
+    int? readAt,
+  }) {
+    return Message(
+      id: id ?? this.id,
+      messageId: messageId ?? this.messageId,
+      messageType: messageType ?? this.messageType,
+      senderId: senderId ?? this.senderId,
+      receiverId: receiverId ?? this.receiverId,
+      content: content ?? this.content,
+      hops: hops ?? this.hops,
+      ttl: ttl ?? this.ttl,
+      status: status ?? this.status,
+      sentAt: sentAt ?? this.sentAt,
+      readAt: readAt ?? this.readAt,
+    );
+  }
+
   Uint8List toBytes() {
     String jsonString = jsonEncode(toMap());
     return Uint8List.fromList(utf8.encode(jsonString));
