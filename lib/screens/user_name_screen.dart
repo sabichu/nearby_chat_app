@@ -14,20 +14,20 @@ class _UserNameScreenState extends State<UserNameScreen> {
     String name = _controller.text.trim();
     if (name.isEmpty) {
       setState(() {
-        _errorMessage = "El nombre no puede estar vacío.";
+        _errorMessage = 'The name cannot be empty.';
       });
       return;
     }
     if (name.length > 16) {
       setState(() {
-        _errorMessage = "El nombre no puede exceder 16 caracteres.";
+        _errorMessage = 'The name cannot exceed 16 characters.';
       });
       return;
     }
     if (!RegExp(r"^[a-zA-Z0-9\s\-_]+$").hasMatch(name)) {
       setState(() {
         _errorMessage =
-            "Solo se permiten letras, números, espacios, guiones y guiones bajos.";
+            'Only letters, numbers, spaces, hyphens and underscores are allowed.';
       });
       return;
     }
@@ -58,7 +58,7 @@ class _UserNameScreenState extends State<UserNameScreen> {
               TextField(
                 controller: _controller,
                 decoration: InputDecoration(
-                  labelText: "Username",
+                  labelText: 'Username',
                   errorText: _errorMessage,
                   labelStyle: const TextStyle(color: Colors.white),
                   enabledBorder: const OutlineInputBorder(
@@ -73,7 +73,7 @@ class _UserNameScreenState extends State<UserNameScreen> {
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _validateAndProceed,
-                child: const Text("Start chatting"),
+                child: const Text('Start chatting'),
               ),
             ],
           ),

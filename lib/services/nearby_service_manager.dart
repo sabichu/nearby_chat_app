@@ -73,7 +73,7 @@ class NearbyServiceManager {
     _generateUserInfo(userName);
 
     if (!await _requestPermissions()) {
-      throw Exception("No se concedieron todos los permisos necesarios.");
+      throw Exception('Not all required permits were granted');
     }
 
     _startAdvertising();
@@ -156,7 +156,7 @@ class NearbyServiceManager {
         },
       );
     } catch (e) {
-      print('Error al iniciar Advertising: $e');
+      print('Error starting Advertising: $e');
     }
   }
 
@@ -171,7 +171,7 @@ class NearbyServiceManager {
         onEndpointLost: (id) {},
       );
     } catch (e) {
-      print('Error al iniciar Discovery: $e');
+      print('Error starting Discovery: $e');
     }
   }
 
@@ -189,7 +189,7 @@ class NearbyServiceManager {
             Message receivedMessage = Message.fromBytes(payload.bytes!);
             _processReceivedMessage(receivedMessage);
           } catch (e) {
-            print("Error al procesar el mensaje recibido: $e");
+            print('Error processing received message: $e');
           }
         }
       },
@@ -282,7 +282,7 @@ class NearbyServiceManager {
         _handleAckMessage(message);
         break;
       default:
-        print('Tipo de mensaje desconocido: ${message.messageType}');
+        print('Unknown type of message: ${message.messageType}');
     }
   }
 
@@ -313,12 +313,12 @@ class NearbyServiceManager {
 
     message.incrementHops();
     if (message.isExpired()) {
-      print("Mensaje de desconexión expirado. No se procesará.");
+      print('Disconnection message expired. Will not be processed.');
       return;
     }
 
     final timer = Timer(Duration(seconds: 10), () async {
-      print("Timer expirado para $targetDeviceId. Propagando desconexión.");
+      print('Expired timer for $targetDeviceId. Propagating disconnection.');
       await _databaseService.deleteDevice(targetDeviceId);
 
       for (String endpointId in _connectedEndpoints) {
@@ -354,7 +354,7 @@ class NearbyServiceManager {
     try {
       Nearby().sendBytesPayload(endpointId, reachabilityCheck.toBytes());
     } catch (e) {
-      print("Error al enviar REACHABILITY_CHECK a $endpointId: $e");
+      print('Error when sending REACHABILITY_CHECK to $endpointId: $e');
     }
   }
 
@@ -369,7 +369,7 @@ class NearbyServiceManager {
     final originalMessageId = contentParts[1];
 
     if (_connectedEndpoints.contains(targetDeviceId)) {
-      print("Conexión directa encontrada con el dispositivo desconectado $targetDeviceId.");
+      print('Direct connection found with device disconnected $targetDeviceId.');
 
       final reachabilityResponse = Message(
         messageId: Uuid().v4(),
@@ -391,7 +391,7 @@ class NearbyServiceManager {
         }
       }
     } else {
-      print("No conexión directa con $targetDeviceId. Propagando REACHABILITY_CHECK.");
+      print('There is no connection with $targetDeviceId. Propagating REACHABILITY_CHECK.');
 
       for (String endpointId in _connectedEndpoints) {
         final senderNearbyId = await _databaseService.getNearbyIdFromLocalId(message.senderId);
@@ -414,7 +414,7 @@ class NearbyServiceManager {
 
     if (message.receiverId == localEndpointId) {
       if (_disconnectTimers.containsKey(originalMessageId)) {
-        print("Recibida respuesta de alcanzabilidad para $targetDeviceId. Cancelando timer.");
+        print('Reachability response received for $targetDeviceId. Cancelling timer.');
         _disconnectTimers[originalMessageId]?.cancel();
         _disconnectTimers.remove(originalMessageId);
       }
@@ -424,10 +424,10 @@ class NearbyServiceManager {
     final nextHopId = await _databaseService.getRoutingEntry(message.receiverId);
     if (nextHopId != null) {
       try {
-        print("Propagando REACHABILITY_CHECK_RESPONSE al siguiente salto: ${nextHopId.nextHopId}");
+        print('Propagating REACHABILITY_CHECK_RESPONSE to the next hop: ${nextHopId.nextHopId}');
         Nearby().sendBytesPayload(nextHopId.nextHopId, message.toBytes());
       } catch (e) {
-        print("Error al propagar REACHABILITY_CHECK_RESPONSE: $e");
+        print('Error propagating REACHABILITY_CHECK_RESPONSE: $e');
       }
     } else {
       for (String endpointId in _connectedEndpoints) {
@@ -446,7 +446,7 @@ class NearbyServiceManager {
 
     message.incrementHops();
     if (message.isExpired()) {
-      print("Mensaje expirado: ${message.messageId}. No se reenviará.");
+      print('Expired message: ${message.messageId}. It will not be forwarded.');
       return;
     }
 
@@ -480,14 +480,14 @@ class NearbyServiceManager {
 
     message.incrementHops();
     if (message.isExpired()) {
-      print("ACK expirado. No se procesará.");
+      print('ACK expired. It will not be processed.');
       return;
     }
 
     if (message.receiverId == localEndpointId) {
       final originalMessageId = message.content;
       await _databaseService.updateMessageStatus(originalMessageId, 'DELIVERED');
-      print("ACK recibido para el mensaje: $originalMessageId");
+      print('ACK received for the message: $originalMessageId');
     } else {
       final senderNearbyId = await _databaseService.getNearbyIdFromLocalId(message.senderId);
       for (String endpointId in _connectedEndpoints) {
@@ -542,13 +542,13 @@ class NearbyServiceManager {
     if (await isMessageProcessed(message.messageId)) return;
 
     if (message.isExpired()) {
-      print("Mensaje ROUTING_UPDATE expirado. TTL agotado.");
+      print('ROUTING_UPDATE message expired. TTL timed out.');
       return;
     }
 
     message.incrementHops();
     if (message.isExpired()) {
-      print("Mensaje ROUTING_UPDATE expirado. No se procesará.");
+      print('ROUTING_UPDATE message expired. It will not be processed.');
       return;
     }
 
@@ -586,6 +586,6 @@ class NearbyServiceManager {
     return await _databaseService.doesMessageExist(messageId);
   }
 
-  String get userInfo => _userInfo ?? "User desconocido";
+  String get userInfo => _userInfo ?? 'Unknown user';
   List<String> get connectedEndpoints => List.unmodifiable(_connectedEndpoints);
 }
