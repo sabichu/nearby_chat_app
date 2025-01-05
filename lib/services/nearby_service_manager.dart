@@ -151,7 +151,6 @@ class NearbyServiceManager {
           }
         },
         onDisconnected: (id) {
-          _connectedEndpoints.remove(id);
           _onDisconnected(id);
         },
       );
@@ -245,27 +244,59 @@ class NearbyServiceManager {
         }
       },
       onDisconnected: (id) {
-        _connectedEndpoints.remove(id);
         _onDisconnected(id);
       },
     );
   }
 
   void _onDisconnected(String id) async {
-    await _databaseService.deleteDevice(id);
+    _connectedEndpoints.remove(id);
+    await _databaseService.deleteRoutingEntry(id);
 
-    final disconnectUpdate = Message(
+    final localId = await _databaseService.getLocalIdFromNearbyId(id);
+
+    final disconnectMessage = Message(
       messageId: Uuid().v4(),
       messageType: 'DISCONNECT_UPDATE',
       senderId: localEndpointId,
       receiverId: '',
-      content: '$id',
+      content: '$localId',
       sentAt: DateTime.now().millisecondsSinceEpoch,
     );
 
-    for (String endpointId in _connectedEndpoints) {
-      Nearby().sendBytesPayload(endpointId, disconnectUpdate.toBytes());
-    }
+    await sendMessage(disconnectMessage);
+
+    _startDisconnectTimer(
+      messageId: disconnectMessage.messageId,
+      targetLocalId: localId!,
+    );
+
+    final checkMessage = Message(
+      messageId: Uuid().v4(),
+      messageType: 'REACHABILITY_CHECK',
+      senderId: localEndpointId,
+      receiverId: localId!,
+      content: '$localId|${disconnectMessage.messageId}',
+      sentAt: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    await sendMessage(checkMessage);
+  }
+
+  void _startDisconnectTimer({
+    required String messageId,
+    required String targetLocalId,
+  }) {
+    if (_disconnectTimers.containsKey(messageId)) return;
+
+    final timer = Timer(Duration(seconds: 30), () async {
+      print(
+          '[$localEndpointId] Timer expired, deleting $targetLocalId from DB.');
+      await _databaseService.deleteDevice(targetLocalId);
+      _disconnectTimers.remove(messageId);
+    });
+
+    _disconnectTimers[messageId] = timer;
   }
 
   void _processReceivedMessage(Message message, String senderNearbyId) async {
@@ -280,7 +311,7 @@ class NearbyServiceManager {
         _handleRoutingUpdate(message, senderNearbyId);
         break;
       case 'DISCONNECT_UPDATE':
-        _handleDisconnectUpdate(message);
+        _handleDisconnectUpdate(message, senderNearbyId);
         break;
       default:
         print('Unknown type of message: ${message.messageType}');
@@ -417,13 +448,11 @@ class NearbyServiceManager {
     );
   }
 
-  void _handleDisconnectUpdate(Message message) async {
+  void _handleDisconnectUpdate(Message message, String senderNearbyId) async {
     if (await isMessageProcessed(message.messageId)) return;
-
     _processedMessageIds.add(message.messageId);
-    await _databaseService.insertMessage(message);
 
-    final targetDeviceId = message.content;
+    await _databaseService.insertMessage(message);
 
     message.incrementHops();
     if (message.isExpired()) {
@@ -431,32 +460,55 @@ class NearbyServiceManager {
       return;
     }
 
-    final timer = Timer(Duration(seconds: 10), () async {
-      print('Expired timer for $targetDeviceId. Propagating disconnection.');
-      await _databaseService.deleteDevice(targetDeviceId);
+    final targetLocalId = message.content;
+    final targetNearbyId =
+        await _databaseService.getNearbyIdFromLocalId(targetLocalId);
+    final isDirectlyConnected = (targetNearbyId != null &&
+        _connectedEndpoints.contains(targetNearbyId));
 
-      for (String endpointId in _connectedEndpoints) {
-        final senderNearbyId =
-            await _databaseService.getNearbyIdFromLocalId(message.senderId);
-        if (endpointId != senderNearbyId) {
-          Nearby().sendBytesPayload(endpointId, message.toBytes());
-        }
-      }
-    });
+    if (isDirectlyConnected) {
+      // => Responder con REACHABILITY_CHECK_RESPONSE
+      final response = Message(
+        messageId: Uuid().v4(),
+        messageType: 'REACHABILITY_CHECK_RESPONSE',
+        senderId: localEndpointId,
+        receiverId: message.senderId,
+        content: '$targetLocalId|${message.messageId}',
+        hops: 0,
+        ttl: 10,
+        sentAt: DateTime.now().millisecondsSinceEpoch,
+      );
+      // Excluir el fromNearbyId para no volver al mismo salto
+      await sendMessage(response, excludeNearbyIds: [senderNearbyId]);
+    } else {
+      // No veo el device => Timer y un REACHABILITY_CHECK
+      _startDisconnectTimer(
+        messageId: message.messageId,
+        targetLocalId: targetLocalId,
+      );
 
-    _disconnectTimers[message.messageId] = timer;
+      // Preparamos un REACHABILITY_CHECK
+      final checkMsg = Message(
+        messageId: Uuid().v4(),
+        messageType: 'REACHABILITY_CHECK',
+        senderId: localEndpointId,
+        receiverId: targetLocalId,
+        content: '$targetLocalId|${message.messageId}',
+        hops: 0,
+        ttl: 10,
+        sentAt: DateTime.now().millisecondsSinceEpoch,
+      );
 
-    for (String endpointId in _connectedEndpoints) {
-      final senderNearbyId =
-          await _databaseService.getNearbyIdFromLocalId(message.senderId);
-      if (endpointId != senderNearbyId) {
-        await _sendReachabilityCheck(
-            endpointId, targetDeviceId, message.messageId);
-      }
+      await sendMessage(checkMsg, excludeNearbyIds: [senderNearbyId]);
+    }
+
+    // Por último, si quieres "reenviar" el propio DISCONNECT_UPDATE con hops++,
+    // lo harías incrementando hops, revisando si no expira y luego sendMessage.
+    message.incrementHops();
+    if (!message.isExpired()) {
+      await sendMessage(message, excludeNearbyIds: [senderNearbyId]);
     }
   }
-
-  
 
   void _handleReachabilityCheck(Message message) async {
     if (await isMessageProcessed(message.messageId)) return;

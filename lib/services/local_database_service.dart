@@ -124,7 +124,8 @@ class LocalDatabaseService {
     ''');
 
     return {
-      for (var row in result) row['receiver_id'] as String: row['unread_count'] as int
+      for (var row in result)
+        row['receiver_id'] as String: row['unread_count'] as int
     };
   }
 
@@ -242,18 +243,38 @@ class LocalDatabaseService {
     }
   }
 
+  Future<String?> getLocalIdFromNearbyId(String nearbyId) async {
+    final db = await database;
+    try {
+      final List<Map<String, dynamic>> result = await db.query(
+        'devices',
+        columns: ['local_id'],
+        where: 'device_id = ?',
+        whereArgs: [nearbyId],
+      );
+
+      if (result.isNotEmpty) {
+        return result.first['local_id'] as String;
+      }
+      return null;
+    } catch (e) {
+      print("Error al obtener el ID local para el nearby ID $nearbyId: $e");
+      return null;
+    }
+  }
+
   Future<List<Device>> getAllDevices() async {
     final db = await database;
     final List<Map<String, dynamic>> maps = await db.query('devices');
     return List.generate(maps.length, (i) => Device.fromMap(maps[i]));
   }
 
-  Future<int> deleteDevice(String deviceId) async {
+  Future<int> deleteDevice(String localId) async {
     final db = await database;
     int result = await db.delete(
       'devices',
-      where: 'device_id = ?',
-      whereArgs: [deviceId],
+      where: 'local_id = ?',
+      whereArgs: [localId],
     );
     _emitDeviceChanges();
     return result;
