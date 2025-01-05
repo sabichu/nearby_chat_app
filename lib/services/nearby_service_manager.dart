@@ -456,25 +456,7 @@ class NearbyServiceManager {
     }
   }
 
-  Future<void> _sendReachabilityCheck(String endpointId, String targetDeviceId,
-      String originalMessageId) async {
-    final reachabilityCheck = Message(
-      messageId: Uuid().v4(),
-      messageType: 'REACHABILITY_CHECK',
-      senderId: localEndpointId,
-      receiverId: endpointId,
-      content: '$targetDeviceId|$originalMessageId',
-      sentAt: DateTime.now().millisecondsSinceEpoch,
-    );
-
-    await _databaseService.insertMessage(reachabilityCheck);
-
-    try {
-      Nearby().sendBytesPayload(endpointId, reachabilityCheck.toBytes());
-    } catch (e) {
-      print('Error when sending REACHABILITY_CHECK to $endpointId: $e');
-    }
-  }
+  
 
   void _handleReachabilityCheck(Message message) async {
     if (await isMessageProcessed(message.messageId)) return;
@@ -605,6 +587,26 @@ class NearbyServiceManager {
     );
 
     sendMessage(routingUpdate, excludeNearbyIds: [nearbyId]);
+  }
+
+  Future<void> _sendReachabilityCheck(String endpointId, String targetDeviceId,
+      String originalMessageId) async {
+    final reachabilityCheck = Message(
+      messageId: Uuid().v4(),
+      messageType: 'REACHABILITY_CHECK',
+      senderId: localEndpointId,
+      receiverId: endpointId,
+      content: '$targetDeviceId|$originalMessageId',
+      sentAt: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    await _databaseService.insertMessage(reachabilityCheck);
+
+    try {
+      Nearby().sendBytesPayload(endpointId, reachabilityCheck.toBytes());
+    } catch (e) {
+      print('Error when sending REACHABILITY_CHECK to $endpointId: $e');
+    }
   }
 
   Future<bool> isMessageProcessed(String messageId) async {
