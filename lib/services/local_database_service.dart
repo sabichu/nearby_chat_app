@@ -61,9 +61,10 @@ class LocalDatabaseService {
         content TEXT NOT NULL,
         hops INTEGER NOT NULL DEFAULT 0,
         ttl INTEGER NOT NULL DEFAULT 10,
-        status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SENT', 'DELIVERED', 'READ', 'FORWARDED')),
+        status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'SENT', 'DELIVERED', 'READ', 'FORWARDED', 'ERROR')),
         sent_at INTEGER NOT NULL,
-        read_at INTEGER
+        read_at INTEGER,
+        date_created INTEGER DEFAULT (strftime('%s','now'))
       )
     ''');
 
@@ -88,6 +89,7 @@ class LocalDatabaseService {
 
   Future<int> insertMessage(Message message) async {
     final db = await database;
+    message.dateCreated = DateTime.now().millisecondsSinceEpoch;
     return await db.insert('messages', message.toMap());
   }
 
@@ -104,9 +106,10 @@ class LocalDatabaseService {
 
     final result = await _database!.rawQuery(
       '''
-      SELECT * FROM messages
-      WHERE sender_id = ? OR receiver_id = ?
-      ORDER BY sent_at ASC
+      SELECT * 
+        FROM messages
+       WHERE message_type = 'NORMAL' AND (sender_id = ? OR receiver_id = ?)
+      ORDER BY date_created ASC
       ''',
       [deviceId, deviceId],
     );
@@ -134,7 +137,7 @@ class LocalDatabaseService {
     await db.update(
       'messages',
       {'status': 'READ', 'read_at': DateTime.now().millisecondsSinceEpoch},
-      where: 'receiver_id = ? AND status != ?',
+      where: 'sender_id = ? AND status != ?',
       whereArgs: [deviceId, 'READ'],
     );
   }
@@ -173,7 +176,7 @@ class LocalDatabaseService {
     final nearbyId = await getNearbyIdFromLocalId(localId);
 
     if (nearbyId == null) {
-      print('Could not find Nearby ID for local ID $localId.');
+      print('Could not find route entry for local ID $localId.');
       return null;
     }
 

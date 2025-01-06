@@ -13,6 +13,7 @@ class Message {
   String status;
   final int sentAt;
   int? readAt;
+  int? dateCreated;
 
   Message({
     this.id,
@@ -26,6 +27,7 @@ class Message {
     this.status = 'PENDING',
     required this.sentAt,
     this.readAt,
+    this.dateCreated,
   });
 
   Message copyWith({
@@ -40,6 +42,7 @@ class Message {
     String? status,
     int? sentAt,
     int? readAt,
+    int? dateCreated,
   }) {
     return Message(
       id: id ?? this.id,
@@ -53,6 +56,7 @@ class Message {
       status: status ?? this.status,
       sentAt: sentAt ?? this.sentAt,
       readAt: readAt ?? this.readAt,
+      dateCreated: dateCreated ?? this.dateCreated,
     );
   }
 
@@ -79,6 +83,7 @@ class Message {
       'status': status,
       'sent_at': sentAt,
       'read_at': readAt,
+      'date_created': dateCreated,
     };
   }
 
@@ -95,6 +100,7 @@ class Message {
       status: map['status'],
       sentAt: map['sent_at'],
       readAt: map['read_at'],
+      dateCreated: map['date_created'],
     );
   }
 

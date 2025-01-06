@@ -221,32 +221,42 @@ class NearbyServiceManager {
   }
 
   void _handleEndpointFound(String remoteEndpointId, String remoteUserInfo) {
+    print('Stop Advertising temporarily');
+    Nearby().stopDiscovery();
     final String remoteId = remoteUserInfo.split('|')[0];
     final String localId = userInfo.split('|')[0];
 
     if (localId.compareTo(remoteId) < 0) {
+      print('Initiating connection');
       _connectToDevice(remoteEndpointId);
+    } else {
+      print('Waiting for the other device to start connection');
     }
   }
 
   void _connectToDevice(String id) {
+    print('Connecting');
     if (_connectedEndpoints.contains(id)) {
       return;
     }
 
-    Nearby().requestConnection(
-      userInfo,
-      id,
-      onConnectionInitiated: _onConnectionInitiated,
-      onConnectionResult: (id, status) {
-        if (status == Status.CONNECTED) {
-          _connectedEndpoints.add(id);
-        }
-      },
-      onDisconnected: (id) {
-        _onDisconnected(id);
-      },
-    );
+    try {
+      Nearby().requestConnection(
+        userInfo,
+        id,
+        onConnectionInitiated: _onConnectionInitiated,
+        onConnectionResult: (id, status) {
+          if (status == Status.CONNECTED) {
+            _connectedEndpoints.add(id);
+          }
+        },
+        onDisconnected: (id) {
+          _onDisconnected(id);
+        },
+      );
+    } catch (e) {
+      print('error: $e');
+    }
   }
 
   void _onDisconnected(String id) async {
@@ -484,7 +494,8 @@ class NearbyServiceManager {
         sentAt: DateTime.now().millisecondsSinceEpoch,
       );
 
-      final nearbyIdOfSender = await _databaseService.getNearbyIdFromLocalId(message.senderId);
+      final nearbyIdOfSender =
+          await _databaseService.getNearbyIdFromLocalId(message.senderId);
       List<String> excludeList = [];
       if (senderNearbyId != nearbyIdOfSender) {
         excludeList.add(senderNearbyId);
@@ -529,8 +540,10 @@ class NearbyServiceManager {
     final targetLocalId = contentParts[0];
     final originalMessageId = contentParts[1];
 
-    final targetNearbyId = await _databaseService.getNearbyIdFromLocalId(targetLocalId);
-    final isDirectlyConnected = (targetNearbyId != null && _connectedEndpoints.contains(targetNearbyId));
+    final targetNearbyId =
+        await _databaseService.getNearbyIdFromLocalId(targetLocalId);
+    final isDirectlyConnected = (targetNearbyId != null &&
+        _connectedEndpoints.contains(targetNearbyId));
 
     if (isDirectlyConnected) {
       final response = Message(
@@ -544,7 +557,8 @@ class NearbyServiceManager {
         sentAt: DateTime.now().millisecondsSinceEpoch,
       );
 
-      final nearbyIdOfSender = await _databaseService.getNearbyIdFromLocalId(message.senderId);
+      final nearbyIdOfSender =
+          await _databaseService.getNearbyIdFromLocalId(message.senderId);
       List<String> excludeList = [];
       if (senderNearbyId != nearbyIdOfSender) {
         excludeList.add(senderNearbyId);
@@ -556,7 +570,8 @@ class NearbyServiceManager {
     }
   }
 
-  void _handleReachabilityCheckResponse(Message message, String senderNearbyId) async {
+  void _handleReachabilityCheckResponse(
+      Message message, String senderNearbyId) async {
     if (await isMessageProcessed(message.messageId)) return;
     _processedMessageIds.add(message.messageId);
 
@@ -564,7 +579,8 @@ class NearbyServiceManager {
 
     message.incrementHops();
     if (message.isExpired()) {
-      print('Reachability check response message expired. Will not be processed.');
+      print(
+          'Reachability check response message expired. Will not be processed.');
       return;
     }
 
@@ -573,7 +589,8 @@ class NearbyServiceManager {
     final originalMessageId = contentParts[1];
 
     if (_disconnectTimers.containsKey(originalMessageId)) {
-      print('Reachability response received for $targetLocalId. Cancelling timer.');
+      print(
+          'Reachability response received for $targetLocalId. Cancelling timer.');
       _disconnectTimers[originalMessageId]?.cancel();
       _disconnectTimers.remove(originalMessageId);
     }
