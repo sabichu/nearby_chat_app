@@ -61,17 +61,28 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Chats',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Chats',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  IconButton(
+                    color: Colors.white,
+                    icon: Icon(Icons.restart_alt),
+                    iconSize: 32,
+                    onPressed: _restartNearbyServices,
+                  )
+                ],
               ),
               const SizedBox(height: 8),
               Expanded(
@@ -108,7 +119,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       itemCount: devices.length,
                       itemBuilder: (context, index) {
                         final device = devices[index];
-                        final unreadCount = _unreadMessages[device.localId] ?? 0;
+                        final unreadCount =
+                            _unreadMessages[device.localId] ?? 0;
 
                         return GestureDetector(
                           onTap: () => Navigator.push(
@@ -120,7 +132,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                           ).then((_) {
-                            _nearbyServiceManager.resetUnreadMessages(device.localId);
+                            _nearbyServiceManager
+                                .resetUnreadMessages(device.localId);
                           }),
                           child: UserCard(
                             userId: device.localId,
