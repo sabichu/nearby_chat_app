@@ -38,6 +38,23 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> _restartNearbyServices() async {
+    try {
+      await _nearbyServiceManager.restartServices();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Nearby services restarted'),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

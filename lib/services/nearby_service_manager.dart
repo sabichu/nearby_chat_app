@@ -64,6 +64,8 @@ class NearbyServiceManager {
   final Set<String> _processedMessageIds = {};
   final Map<String, Timer> _disconnectTimers = {};
 
+  final Map<String, Timer> _reconnectionTimers = {};
+
   Future<void> initialize({required String userName}) async {
     if (_isInitialized) return;
     _isInitialized = true;
@@ -73,7 +75,8 @@ class NearbyServiceManager {
     _generateUserInfo(userName);
 
     if (!await _requestPermissions()) {
-      throw Exception('Not all required permits were granted');
+      //throw Exception('Not all required permits were granted');
+      print('Not all required permits were granted');
     }
 
     _startAdvertising();
@@ -132,11 +135,26 @@ class NearbyServiceManager {
     Map<Permission, PermissionStatus> statuses = await [
       Permission.bluetooth,
       Permission.bluetoothConnect,
+      Permission.bluetoothAdvertise,
       Permission.bluetoothScan,
       Permission.location,
     ].request();
 
     return statuses.values.every((status) => status.isGranted);
+  }
+
+  void _scheduleReconnection(String remoteEndpointId) {
+    if (_reconnectionTimers.containsKey(remoteEndpointId)) return;
+
+    final timer = Timer(Duration(seconds: 5), () {
+      _reconnectionTimers.remove(remoteEndpointId);
+      if (!_connectedEndpoints.contains(remoteEndpointId)) {
+        print('Retrying connection with $remoteEndpointId...');
+        _connectToDevice(remoteEndpointId);
+      }
+    });
+
+    _reconnectionTimers[remoteEndpointId] = timer;
   }
 
   void _startAdvertising() async {
@@ -172,6 +190,21 @@ class NearbyServiceManager {
     } catch (e) {
       print('Error starting Discovery: $e');
     }
+  }
+
+  Future<void> restartServices() async {
+    try {
+      Nearby().stopAdvertising();
+      Nearby().stopDiscovery();
+
+      await Future.delayed(Duration(milliseconds: 500));
+    } catch (_) {
+      print('Error while restarting Advertising and Discovery');
+    }
+
+    print('Restarting Advertising and Discovery manually');
+    _startAdvertising();
+    _startDiscovery();
   }
 
   void _onConnectionInitiated(String id, ConnectionInfo info) async {
@@ -221,8 +254,6 @@ class NearbyServiceManager {
   }
 
   void _handleEndpointFound(String remoteEndpointId, String remoteUserInfo) {
-    print('Stop Advertising temporarily');
-    Nearby().stopDiscovery();
     final String remoteId = remoteUserInfo.split('|')[0];
     final String localId = userInfo.split('|')[0];
 
@@ -236,6 +267,7 @@ class NearbyServiceManager {
 
   void _connectToDevice(String id) {
     print('Connecting');
+
     if (_connectedEndpoints.contains(id)) {
       return;
     }
@@ -248,6 +280,9 @@ class NearbyServiceManager {
         onConnectionResult: (id, status) {
           if (status == Status.CONNECTED) {
             _connectedEndpoints.add(id);
+          } else if (status == Status.ERROR) {
+            print('Connection error with $id. Scheduling a reconnection.');
+            _scheduleReconnection(id);
           }
         },
         onDisconnected: (id) {
@@ -255,7 +290,8 @@ class NearbyServiceManager {
         },
       );
     } catch (e) {
-      print('error: $e');
+      print('requestConnection threw exception: $e. Scheduling reconnection in 5s.');
+      _scheduleReconnection(id);
     }
   }
 
