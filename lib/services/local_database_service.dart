@@ -99,7 +99,7 @@ class LocalDatabaseService {
 
   Future<List<Message>> loadMessages(String deviceId) async {
     if (_database == null) {
-      throw Exception("Database not initialized");
+      throw Exception('Database not initialized');
     }
 
     final result = await _database!.rawQuery(
@@ -173,7 +173,7 @@ class LocalDatabaseService {
     final nearbyId = await getNearbyIdFromLocalId(localId);
 
     if (nearbyId == null) {
-      print("No se encontró un ID de Nearby para el local ID $localId.");
+      print('Could not find Nearby ID for local ID $localId.');
       return null;
     }
 
@@ -190,7 +190,7 @@ class LocalDatabaseService {
       }
       return null;
     } catch (e) {
-      print("Error al obtener la ruta para el destino $nearbyId: $e");
+      print('Could not find route for ID $nearbyId: $e');
       return null;
     }
   }
@@ -238,7 +238,7 @@ class LocalDatabaseService {
       }
       return null;
     } catch (e) {
-      print("Error al obtener el ID de Nearby para el local ID $localId: $e");
+      print('Could not find Nearby ID for local ID $localId: $e');
       return null;
     }
   }
@@ -258,7 +258,7 @@ class LocalDatabaseService {
       }
       return null;
     } catch (e) {
-      print("Error al obtener el ID local para el nearby ID $nearbyId: $e");
+      print('Could not find local ID for nearby ID $nearbyId: $e');
       return null;
     }
   }
