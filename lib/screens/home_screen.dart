@@ -140,6 +140,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             userName: device.userName,
                             deviceName: device.modelName,
                             unreadMessages: unreadCount,
+                            isIndirect: device.isIndirect,
+                            isUnderVerification: device.isUnderVerification,
                           ),
                         );
                       },

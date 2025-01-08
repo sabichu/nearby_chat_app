@@ -5,6 +5,7 @@ class Device {
   final String? userName;
   final String? modelName;
   bool isIndirect;
+  bool isUnderVerification;
   int lastSeenAt;
 
   Device({
@@ -14,6 +15,7 @@ class Device {
     this.userName,
     this.modelName,
     this.isIndirect = false,
+    this.isUnderVerification = false,
     required this.lastSeenAt,
   });
 
@@ -25,6 +27,7 @@ class Device {
       'user_name': userName,
       'model_name': modelName,
       'is_indirect': isIndirect ? 1 : 0,
+      'is_under_verification': isUnderVerification ? 1 : 0,
       'last_seen_at': lastSeenAt,
     };
   }
@@ -37,6 +40,7 @@ class Device {
       userName: map['user_name'],
       modelName: map['model_name'],
       isIndirect: map['is_indirect'] == 1,
+      isUnderVerification: map['is_under_verification'] == 1,
       lastSeenAt: map['last_seen_at'],
     );
   }

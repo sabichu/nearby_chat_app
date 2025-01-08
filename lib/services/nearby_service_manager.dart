@@ -290,7 +290,8 @@ class NearbyServiceManager {
         },
       );
     } catch (e) {
-      print('requestConnection threw exception: $e. Scheduling reconnection in 5s.');
+      print(
+          'requestConnection threw exception: $e. Scheduling reconnection in 5s.');
       _scheduleReconnection(id);
     }
   }
@@ -311,6 +312,8 @@ class NearbyServiceManager {
     );
 
     await sendMessage(disconnectMessage);
+
+    await _databaseService.updateDeviceVerificationStatus(localId!, true);
 
     _startDisconnectTimer(
       messageId: disconnectMessage.messageId,
@@ -538,6 +541,9 @@ class NearbyServiceManager {
       }
       await sendMessage(response, excludeNearbyIds: excludeList);
     } else {
+      await _databaseService.updateDeviceVerificationStatus(
+          targetLocalId, true);
+
       _startDisconnectTimer(
         messageId: message.messageId,
         targetLocalId: targetLocalId,
@@ -629,6 +635,9 @@ class NearbyServiceManager {
           'Reachability response received for $targetLocalId. Cancelling timer.');
       _disconnectTimers[originalMessageId]?.cancel();
       _disconnectTimers.remove(originalMessageId);
+
+      await _databaseService.updateDeviceVerificationStatus(
+          targetLocalId, false);
     }
   }
 

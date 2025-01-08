@@ -74,6 +74,14 @@ class _UserNameScreenState extends State<UserNameScreen> {
               ElevatedButton(
                 onPressed: _validateAndProceed,
                 child: const Text('Start chatting'),
+                style: ElevatedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.secondary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  elevation: 15.0,
+                ),
               ),
             ],
           ),

@@ -5,6 +5,8 @@ class UserCard extends StatelessWidget {
   final String? userName;
   final String? deviceName;
   final int unreadMessages;
+  final bool isIndirect;
+  final bool isUnderVerification;
 
   const UserCard({
     super.key,
@@ -12,6 +14,8 @@ class UserCard extends StatelessWidget {
     this.userName,
     this.deviceName,
     this.unreadMessages = 0,
+    this.isIndirect = false,
+    this.isUnderVerification = false,
   });
 
   @override
@@ -39,13 +43,27 @@ class UserCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        userName ?? 'Unknown',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                        ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            userName ?? 'Unknown',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                          if (isIndirect) ...[
+                            SizedBox(
+                              width: 6,
+                            ),
+                            Icon(
+                              Icons.airline_stops,
+                              color: Colors.blueAccent,
+                            ),
+                          ]
+                        ],
                       ),
                       Text(
                         deviceName ?? 'Unknown device',
@@ -59,6 +77,14 @@ class UserCard extends StatelessWidget {
                 ),
                 const SizedBox(
                   width: 8,
+                ),
+                if (isUnderVerification)
+                  Icon(
+                    Icons.warning_amber,
+                    color: Colors.orangeAccent,
+                  ),
+                SizedBox(
+                  width: 6,
                 ),
                 if (unreadMessages > 0)
                   Container(

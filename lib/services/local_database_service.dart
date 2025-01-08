@@ -47,6 +47,7 @@ class LocalDatabaseService {
         user_name TEXT,
         model_name TEXT,
         is_indirect INTEGER NOT NULL DEFAULT 0 CHECK(is_indirect IN (0, 1)),
+        is_under_verification INTEGER DEFAULT 0 CHECK(is_under_verification IN (0, 1)),
         last_seen_at INTEGER NOT NULL
       )
     ''');
@@ -308,5 +309,18 @@ class LocalDatabaseService {
       limit: 1,
     );
     return result.isNotEmpty;
+  }
+
+  Future<int> updateDeviceVerificationStatus(
+      String localId, bool status) async {
+    final db = await database;
+    final result = await db.update(
+      'devices',
+      {'is_under_verification': status ? 1 : 0},
+      where: 'local_id = ?',
+      whereArgs: [localId],
+    );
+    _emitDeviceChanges();
+    return result;
   }
 }
