@@ -20,18 +20,6 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   final NearbyServiceManager nearbyServiceManager = NearbyServiceManager();
 
-  /*
-  @override
-  void initState() {
-    super.initState();
-    _initializeServices();
-  }
-
-  Future<void> _initializeServices() async {
-    await nearbyServiceManager.initialize();
-  }
-  */
-
   @override
   void dispose() {
     nearbyServiceManager.dispose();

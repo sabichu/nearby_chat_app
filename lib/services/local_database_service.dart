@@ -56,7 +56,7 @@ class LocalDatabaseService {
       CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         message_id TEXT NOT NULL UNIQUE,
-        message_type TEXT NOT NULL CHECK (message_type IN ('NORMAL', 'ACK', 'ROUTING_UPDATE', 'DISCONNECT_UPDATE')),
+        message_type TEXT NOT NULL CHECK (message_type IN ('NORMAL', 'ACK', 'ROUTING_UPDATE', 'FULL_UPDATE', 'DISCONNECT_UPDATE')),
         sender_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
         receiver_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
         content TEXT NOT NULL,

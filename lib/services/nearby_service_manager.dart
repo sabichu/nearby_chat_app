@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:device_marketing_names/device_marketing_names.dart';
@@ -250,7 +251,9 @@ class NearbyServiceManager {
 
     await _databaseService.insertDevice(device);
 
-    _broadcastRoutingUpdate(localId, id);
+    _sendFullUpdateToNewDevice(id);
+
+    _broadcastRoutingUpdate(localId, id, userName, modelName);
   }
 
   void _handleEndpointFound(String remoteEndpointId, String remoteUserInfo) {
@@ -358,6 +361,9 @@ class NearbyServiceManager {
         break;
       case 'ROUTING_UPDATE':
         _handleRoutingUpdate(message, senderNearbyId);
+        break;
+      case 'FULL_UPDATE':
+        _handleFullUpdate(message, senderNearbyId);
         break;
       case 'DISCONNECT_UPDATE':
         _handleDisconnectUpdate(message, senderNearbyId);
@@ -478,19 +484,25 @@ class NearbyServiceManager {
 
     final contentParts = message.content.split('|');
 
-    if (contentParts.length < 2) {
+    if (contentParts.length < 4) {
       print('Invalid ROUTING_UPDATE content');
       return;
     }
 
     final localId = contentParts[0];
     final nearbyId = contentParts[1];
+    final userName = contentParts[2];
+    final modelName = contentParts[3];
+
+    if (localId == localEndpointId) return;
 
     final deviceExists = await _databaseService.doesDeviceExist(localId);
     if (!deviceExists) {
       await _databaseService.insertDevice(Device(
         deviceId: nearbyId,
         localId: localId,
+        userName: userName,
+        modelName: modelName,
         isIndirect: true,
         lastSeenAt: DateTime.now().millisecondsSinceEpoch,
       ));
@@ -501,6 +513,29 @@ class NearbyServiceManager {
       message,
       excludeNearbyIds: excludeNearbyIds,
     );
+  }
+
+  void _handleFullUpdate(Message message, String senderNearbyId) async {
+    if (await isMessageProcessed(message.messageId)) return;
+    _processedMessageIds.add(message.messageId);
+
+    await _databaseService.insertMessage(message);
+
+    final jsonList = jsonDecode(message.content) as List;
+    for (var item in jsonList) {
+      final dev = Device.fromMap(item);
+
+      if (dev.localId == localEndpointId) continue;
+
+      final exists = await _databaseService.doesDeviceExist(dev.localId);
+      if (!exists) {
+        dev.isIndirect = true;
+        dev.isUnderVerification = false;
+        await _databaseService.insertDevice(dev);
+      }
+    }
+
+    print('FULL_UPDATE received from $senderNearbyId.');
   }
 
   void _handleDisconnectUpdate(Message message, String senderNearbyId) async {
@@ -667,18 +702,50 @@ class NearbyServiceManager {
     }
   }
 
-  void _broadcastRoutingUpdate(String localId, String nearbyId) {
+  void _broadcastRoutingUpdate(
+      String localId, String nearbyId, String userName, String modelName) {
     final routingUpdate = Message(
       messageId: Uuid().v4(),
       messageType: 'ROUTING_UPDATE',
       senderId: localEndpointId,
       receiverId: '',
-      content: '$localId|$nearbyId',
+      content: '$localId|$nearbyId|$userName|$modelName',
       sentAt: DateTime.now().millisecondsSinceEpoch,
       ttl: 10,
     );
 
     sendMessage(routingUpdate, excludeNearbyIds: [nearbyId]);
+  }
+
+  void _sendFullUpdateToNewDevice(String newEndpointId) async {
+    final allDevices = await _databaseService.getAllDevices();
+
+    final devicesJson = allDevices
+        .where((dev) => dev.deviceId != newEndpointId)
+        .map((dev) => dev.toMap())
+        .toList();
+
+    if (devicesJson.isEmpty) return;
+
+    final serialized = jsonEncode(devicesJson);
+
+    final receiverLocalId =
+        await _databaseService.getLocalIdFromNearbyId(newEndpointId);
+    if (receiverLocalId == null) {
+      print('No device in DB for $newEndpointId, cannot send full update.');
+      return;
+    }
+
+    final fullUpdateMsg = Message(
+      messageId: Uuid().v4(),
+      messageType: 'FULL_UPDATE',
+      senderId: localEndpointId,
+      receiverId: receiverLocalId,
+      content: serialized,
+      sentAt: DateTime.now().millisecondsSinceEpoch,
+    );
+
+    await sendMessage(fullUpdateMsg);
   }
 
   Future<void> _sendReachabilityCheck(String endpointId, String targetDeviceId,
